@@ -12,7 +12,7 @@ import (
 )
 
 // NB: no tabs here
-const YamlConfigExample = `
+const DefaultConfigYAML = `
 - weight: 5
   latency:
     latency: 10000

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -26,6 +28,7 @@ type config struct {
 	Debug           bool          `conf:"debug"            help:"Turn on debug mode."`
 	Out             string        `conf:"out" help:"file to write requests to (default: /dev/null)"`
 	ErrorsOut       string        `conf:"errors-out" help:"file to write errors to (default: /dev/null)"`
+	ChaosConfig     string        `conf:"chaos" help:"file to load chaos config from ('-': stdin; default: see chaos/chaos.go:DefaultConfigYAML)"`
 	ShutdownTimeout time.Duration `conf:"shutdown-timeout" help:"Time limit for shutting down tracking-api." validate:"min=5"`
 }
 
@@ -41,10 +44,28 @@ func main() {
 	events.DefaultLogger.EnableDebug = config.Debug
 	events.DefaultLogger.EnableSource = config.Debug
 
+	var err error
+	var chaosConfigBytes []byte = []byte(chaos.DefaultConfigYAML)
+	if config.ChaosConfig != "" {
+		var chaosConfigReader io.Reader
+		if config.ChaosConfig == "-" {
+			chaosConfigReader = os.Stdin
+		} else {
+			chaosConfigReader, err = os.Open(config.ChaosConfig)
+			if err != nil {
+				events.Log("opening chaos config `%{chaosConfig}s` failed: %{error}s", config.ChaosConfig, err)
+				os.Exit(1)
+			}
+		}
+		chaosConfigBytes, err = ioutil.ReadAll(chaosConfigReader)
+		if err != nil {
+			events.Log("readying chaos config '${chaosConfig}s': %{error}s", config.ChaosConfig, err)
+		}
+	}
 	var chaosRoot chaos.WeightedChaos
-	err := yaml.Unmarshal([]byte(chaos.YamlConfigExample), &chaosRoot)
+	err = yaml.Unmarshal(chaosConfigBytes, &chaosRoot)
 	if err != nil {
-		events.Log("unmarshalling chaoses failed: %{error}s", err)
+		events.Log("unmarshaling chaoses failed: %{error}s", err)
 		os.Exit(1)
 	}
 
