@@ -1,0 +1,83 @@
+version: 2
+jobs:
+  test:
+    docker:
+      - image: circleci/golang:1.11
+    working_directory: /go/src/github.com/segmentio/tracking-api-chaos
+    steps:
+      - checkout
+      - run:
+          name: Test
+          command: |
+            make test
+
+  vulnscan:
+    docker:
+      - image: circleci/golang:1.11
+    working_directory: /go/src/github.com/segmentio/tracking-api-chaos
+    steps:
+      - checkout
+      - run:
+          name: Vulnerability scan
+          command: |
+            make govendor
+            govendor sync -v
+            curl -Ls https://raw.githubusercontent.com/segmentio/snyk_helpers/master/initialization/snyk.sh | sh
+
+  dist:
+    docker:
+      - image: circleci/golang:1.11
+    working_directory: /go/src/github.com/segmentio/tracking-api-chaos
+    steps:
+      - checkout
+      - run:
+          name: Install nfpm, rpmbuild
+          command: |
+            sudo make -f Makefile.tools nfpm-debian rpmbuild-debian
+      - run:
+          name: Make distributables
+          command: |
+            make -f Makefile.release dist
+      - persist_to_workspace:
+          root: .
+          paths: ['dist/*']
+
+  publish:
+    docker:
+      - image: circleci/golang:1.10
+    working_directory: /go/src/github.com/segmentio/tracking-api-chaos
+    steps:
+      - checkout
+      - attach_workspace: { at: . }
+      - run:
+          name: Install tools
+          command: |
+            make -f Makefile.tools github-release
+      # we don't publish to packagecloud; demand for that is doubtful
+      - run:
+          name: Release
+          command: |
+            make -f Makefile.release publish-github
+
+workflows:
+  version: 2
+  test-dist-publish:
+    jobs:
+      - test
+      - vulnscan:
+          context: snyk
+      - dist:
+          # needed to ensure dist happens on tag events
+          filters:
+            tags:
+              only: /.*/
+      - publish:
+          requires:
+            - dist
+          filters:
+            # never publish from a branch event
+            branches:
+              ignore: /.*/
+            # release only on tag push events like vX[.Y.Z...][-whatever]
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*(-[a-zA-Z0-9-]+)?/

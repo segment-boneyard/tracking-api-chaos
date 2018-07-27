@@ -1,0 +1,122 @@
+# Goals:
+# - Linux releases can be published to Github automatically by CircleCI
+#
+# This Makefile is meant for machines
+
+include Makefile
+
+# set --pre-release if not tagged or tree is dirty or there's a `-` in the tag
+ifneq (,$(findstring -,$(VERSION)))
+	GITHUB_RELEASE_FLAGS := "--pre-release"
+	PACKAGECLOUD_NAME_SUFFIX := "-prerelease"
+endif
+
+PACKAGECLOUD_DEB_DISTROS := \
+	debian/stretch \
+	ubuntu/trusty \
+	ubuntu/xenial \
+	ubuntu/bionic
+
+PACKAGECLOUD_RPM_DISTROS := \
+	fedora/27 \
+	fedora/28
+
+publish: publish-github publish-packagecloud
+
+publish-github: publish-github-darwin publish-github-linux publish-github-deb publish-github-rpm publish-github-sha256sums
+
+publish-packagecloud: publish-packagecloud-deb publish-packagecloud-rpm
+
+github-release:
+	github-release release \
+	--security-token $$GH_LOGIN \
+	--user segmentio \
+	--repo tracking-api-chaos \
+	$(GITHUB_RELEASE_FLAGS) \
+	--tag $(VERSION) \
+	--name $(VERSION)
+
+publish-github-darwin: dist/tracking-api-chaos-$(VERSION)-darwin-amd64 | github-release
+	github-release upload \
+	--security-token $$GH_LOGIN \
+	--user segmentio \
+	--repo tracking-api-chaos \
+	--tag $(VERSION) \
+	--name tracking-api-chaos-$(VERSION)-darwin-amd64 \
+	--file $<
+
+publish-github-linux: dist/tracking-api-chaos-$(VERSION)-linux-amd64 | github-release
+	github-release upload \
+	--security-token $$GH_LOGIN \
+	--user segmentio \
+	--repo tracking-api-chaos \
+	--tag $(VERSION) \
+	--name tracking-api-chaos-$(VERSION)-linux-amd64 \
+	--file $<
+
+publish-github-deb: dist/tracking-api-chaos_$(VERSION)_amd64.deb | github-release
+	github-release upload \
+	--security-token $$GH_LOGIN \
+	--user segmentio \
+	--repo tracking-api-chaos \
+	--tag $(VERSION) \
+	--name tracking-api-chaos_$(VERSION)_amd64.deb \
+	--file $<
+
+publish-github-rpm: dist/tracking-api-chaos_$(VERSION)_amd64.rpm | github-release
+	github-release upload \
+	--security-token $$GH_LOGIN \
+	--user segmentio \
+	--repo tracking-api-chaos \
+	--tag $(VERSION) \
+	--name tracking-api-chaos_$(VERSION)_amd64.rpm \
+	--file $<
+	
+publish-github-sha256sums: dist/tracking-api-chaos-$(VERSION).sha256sums | github-release
+	github-release upload \
+	--security-token $$GH_LOGIN \
+	--user segmentio \
+	--repo tracking-api-chaos \
+	--tag $(VERSION) \
+	--name tracking-api-chaos-$(VERSION).sha256sums \
+	--file dist/tracking-api-chaos-$(VERSION).sha256sums
+
+packagecloud.conf.json:
+	@echo "{\"url\":\"https://packagecloud.io\",\"token\":\"$${PACKAGECLOUD_TOKEN}\"}" > $@
+
+# package_cloud prints the last 4 chars of our token :(
+# so we attempt to filter that out
+
+publish-packagecloud-deb: dist/tracking-api-chaos_$(VERSION)_amd64.deb packagecloud.conf.json
+	@for v in $(PACKAGECLOUD_DEB_DISTROS); do \
+		package_cloud push --config packagecloud.conf.json segment/tracking-api-chaos$(PACKAGECLOUD_NAME_SUFFIX)/$$v $< | \
+			grep -v 'with token:' ; \
+	done
+
+publish-packagecloud-rpm: dist/tracking-api-chaos_$(VERSION)_amd64.rpm packagecloud.conf.json
+	@for v in $(PACKAGECLOUD_RPM_DISTROS); do \
+		package_cloud push --config packagecloud.conf.json segment/tracking-api-chaos$(PACKAGECLOUD_NAME_SUFFIX)/$$v $< | \
+			grep -v 'with token:' ; \
+	done
+
+dist: dist/tracking-api-chaos-$(VERSION)-darwin-amd64 dist/tracking-api-chaos-$(VERSION)-linux-amd64 dist/tracking-api-chaos_$(VERSION)_amd64.deb dist/tracking-api-chaos_$(VERSION)_amd64.rpm dist/tracking-api-chaos-$(VERSION).sha256sums
+
+dist/tracking-api-chaos-$(VERSION).sha256sums: dist/tracking-api-chaos-$(VERSION)-darwin-amd64 dist/tracking-api-chaos-$(VERSION)-linux-amd64 dist/tracking-api-chaos_$(VERSION)_amd64.deb dist/tracking-api-chaos_$(VERSION)_amd64.rpm
+	sha256sum $^ | sed 's|dist/||g' > $@
+
+dist/nfpm-$(VERSION).yaml: | dist/
+	sed -e "s/\$${VERSION}/$(VERSION)/g" -e "s|\$${DIST_BIN}|dist/tracking-api-chaos-$(VERSION)-linux-amd64|g" < nfpm.yaml.tmpl > $@
+
+dist/tracking-api-chaos_$(VERSION)_amd64.deb: dist/nfpm-$(VERSION).yaml dist/tracking-api-chaos-$(VERSION)-linux-amd64
+	nfpm -f $< pkg --target $@
+
+dist/tracking-api-chaos_$(VERSION)_amd64.rpm: dist/nfpm-$(VERSION).yaml dist/tracking-api-chaos-$(VERSION)-linux-amd64
+	nfpm -f $< pkg --target $@
+
+.PHONY: \
+	publish-github \
+	publish-github-linux \
+	publish-github-rpm \
+	publish-github-deb \
+	publish-github-darwin \
+	github-release

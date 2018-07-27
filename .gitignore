@@ -1,0 +1,8 @@
+.test
+build/
+*~
+/tracking-api
+/vendor/*/**
+/test/vendor/*/
+/tracking-api-chaos
+unstable-tester
