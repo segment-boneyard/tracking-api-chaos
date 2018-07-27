@@ -1,6 +1,7 @@
 package api
 
 import (
+	"io"
 	"net/http"
 	"strings"
 
@@ -22,7 +23,7 @@ type Server struct {
 	*app.App
 }
 
-func New(out string, errorsOut string, chaosRoot chaos.Chaos) *Server {
+func New(out, errorsOut io.Writer, chaosRoot chaos.Chaos) *Server {
 	api := &Server{
 		App:   app.New(),
 		chaos: chaosRoot,

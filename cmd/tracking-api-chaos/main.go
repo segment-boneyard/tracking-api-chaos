@@ -70,11 +70,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	out, err := os.Create(config.Out)
+	if err != nil {
+		events.Log("opening out %{out}s failed: %{error}s", config.Out, err)
+		os.Exit(1)
+	}
+	defer out.Close()
+
+	errorsOut, err := os.Create(config.ErrorsOut)
+	if err != nil {
+		events.Log("opening errors-out %{errorsout}s failed: %{error}s", config.ErrorsOut, err)
+		os.Exit(1)
+	}
+	defer errorsOut.Close()
+
 	events.Log("starting %s, version: %s", os.Args[0], Version)
 	events.Debug("chaosRoot: %#v", chaosRoot)
 
 	var handler http.Handler
-	handler = api.New(config.Out, config.ErrorsOut, chaosRoot)
+	handler = api.New(out, errorsOut, chaosRoot)
 
 	if config.Debug {
 		handler = httpevents.NewHandler(handler)

@@ -189,3 +189,9 @@ func (c WeightedChaos) Do(w http.ResponseWriter, r *http.Request) (http.Response
 	}
 	return w, r
 }
+
+type NopChaos struct{}
+
+func (c NopChaos) Do(w http.ResponseWriter, r *http.Request) (http.ResponseWriter, *http.Request) {
+	return w, r
+}

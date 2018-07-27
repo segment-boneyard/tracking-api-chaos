@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -40,19 +39,7 @@ type ErrorOut struct {
 }
 
 // New returns a new tracker.
-func New(outFn, errorsOutFn string) *Tracker {
-
-	out, err := os.Create(outFn)
-	if err != nil {
-		events.Log("opening out %{out}s failed: %{error}s", outFn, err)
-		os.Exit(1)
-	}
-
-	errorsOut, err := os.Create(errorsOutFn)
-	if err != nil {
-		events.Log("opening errors-out %{errorsout}s failed: %{error}s", errorsOutFn, err)
-		os.Exit(1)
-	}
+func New(out, errorsOut io.Writer) *Tracker {
 	return &Tracker{
 		out:           out,
 		outJson:       json.NewEncoder(out),
@@ -84,7 +71,6 @@ func (t *Tracker) PublishError(ctx context.Context, b []byte, r *http.Request, e
 
 // Writes a msg to s.out
 func (t *Tracker) Publish(ctx context.Context, msg *message.Message) (err error) {
-
 	if err = msg.Body.SetReceivedAt(Now()); err != nil {
 		events.Log("[tracker]: %{error}s", errors.Wrap(err, "setting received time"))
 		return
@@ -97,7 +83,7 @@ func (t *Tracker) Publish(ctx context.Context, msg *message.Message) (err error)
 	if err != nil {
 		events.Log("[tracker]: %{error}s", errors.Wrap(err, "marshaling JSON"))
 	} else {
-		fmt.Fprintf(t.errorsOut, "\n\n")
+		fmt.Fprintf(t.out, "\n\n")
 	}
 	return
 }
