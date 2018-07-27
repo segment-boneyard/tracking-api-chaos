@@ -24,21 +24,22 @@ import (
 )
 
 type config struct {
-	Bind            string        `conf:"bind"             help:"Address on which tracking-api listens for incoming connections." validate:"nonzero"`
+	Bind            string        `conf:"bind"             help:"Address on which tracking-api listens for incoming connections (default: ':8080')"`
 	Debug           bool          `conf:"debug"            help:"Turn on debug mode."`
 	Out             string        `conf:"out" help:"file to write requests to (default: /dev/null)"`
 	ErrorsOut       string        `conf:"errors-out" help:"file to write errors to (default: /dev/null)"`
 	ChaosConfig     string        `conf:"chaos" help:"file to load chaos config from ('-': stdin; default: see chaos/chaos.go:DefaultConfigYAML)"`
-	ShutdownTimeout time.Duration `conf:"shutdown-timeout" help:"Time limit for shutting down tracking-api." validate:"min=5"`
+	ShutdownTimeout time.Duration `conf:"shutdown-timeout" help:"Time limit for shutting down tracking-api (default: 5s)"`
 }
 
 var version = "dev"
 
 func main() {
 	config := config{
-		Bind:      ":3000",
-		Out:       "/dev/null",
-		ErrorsOut: "/dev/null",
+		Bind:            ":8080",
+		Out:             "/dev/null",
+		ErrorsOut:       "/dev/null",
+		ShutdownTimeout: 5 * time.Second,
 	}
 	conf.Load(&config)
 	events.DefaultLogger.EnableDebug = config.Debug
