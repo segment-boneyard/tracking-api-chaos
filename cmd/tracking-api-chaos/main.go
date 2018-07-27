@@ -32,7 +32,7 @@ type config struct {
 	ShutdownTimeout time.Duration `conf:"shutdown-timeout" help:"Time limit for shutting down tracking-api (default: 5s)"`
 }
 
-var version = "dev"
+var Version = "dev"
 
 func main() {
 	config := config{
@@ -70,7 +70,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	events.Log("starting %s, version: %s", os.Args[0], version)
+	events.Log("starting %s, version: %s", os.Args[0], Version)
 	events.Debug("chaosRoot: %#v", chaosRoot)
 
 	var handler http.Handler

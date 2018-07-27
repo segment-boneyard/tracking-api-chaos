@@ -2,7 +2,7 @@
 build/
 *~
 /tracking-api
-/vendor/*/
+/vendor/*/**
 /test/vendor/*/
 /tracking-api-chaos
 unstable-tester

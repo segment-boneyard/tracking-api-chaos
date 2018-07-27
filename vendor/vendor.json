@@ -27,6 +27,18 @@
 			"revisionTime": "2014-10-01T21:54:17Z"
 		},
 		{
+			"checksumSHA1": "dVqCmA2mEDIDr8tEXu4gTaK9uPs=",
+			"path": "github.com/hashicorp/errwrap",
+			"revision": "d6c0cd88035724dd42e0f335ae30161c20575ecc",
+			"revisionTime": "2018-07-15T04:49:06Z"
+		},
+		{
+			"checksumSHA1": "K395EgrkkWtEFyuAv3WvPF95WN8=",
+			"path": "github.com/hashicorp/go-multierror",
+			"revision": "3d5d8f294aa03d8e98859feac328afbdf1ae0703",
+			"revisionTime": "2018-07-17T15:01:48Z"
+		},
+		{
 			"checksumSHA1": "OBvAHqWjdI4NQVAqTkcQAdTuCFY=",
 			"path": "github.com/justinas/alice",
 			"revision": "1051eaf52fcafdd87ead59d28b065f1fcb8274ec",
@@ -43,6 +55,12 @@
 			"path": "github.com/kr/text",
 			"revision": "7cafcd837844e784b526369c9bce262804aebc60",
 			"revisionTime": "2016-05-04T02:26:26Z"
+		},
+		{
+			"checksumSHA1": "lcHi67jxfyugNtEyr6Y+IYSlZkc=",
+			"path": "github.com/mitchellh/mapstructure",
+			"revision": "f15292f7a699fcc1a38a80977f80a046874ba8ac",
+			"revisionTime": "2018-07-15T05:01:51Z"
 		},
 		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
@@ -103,12 +121,6 @@
 			"path": "github.com/segmentio/events/text",
 			"revision": "590a3ab3429a24d98facc92d3b299226cd72fded",
 			"revisionTime": "2017-02-23T22:54:10Z"
-		},
-		{
-			"checksumSHA1": "VUwfDZKQk9gS7PPDIpFxyBBV4Tk=",
-			"path": "github.com/segmentio/nsq-go",
-			"revision": "252d4fccb97b1f4d63f5ae0fa14abfd2965c7f00",
-			"revisionTime": "2017-02-07T22:37:55Z"
 		},
 		{
 			"checksumSHA1": "G7POD82HtsfNbz6QJjKSN2iRT/I=",
