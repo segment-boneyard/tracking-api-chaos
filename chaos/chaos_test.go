@@ -32,21 +32,31 @@ func TestChoose(t *testing.T) {
 		},
 	}
 
-	if wc.Choose(0) != &nc0_5 {
-		t.Fail()
-	}
-	if wc.Choose(2.5) != &nc0_5 {
-		t.Fail()
-	}
-	if wc.Choose(5) != &nc5_15 {
-		t.Fail()
-	}
-	if wc.Choose(30) != nil {
-		t.Fail()
-	}
-	if wc.Choose(30.1) != nil {
-		t.Fail()
-	}
+	t.Run("0 ∈ [0, 5)", func(t *testing.T) {
+		if wc.Choose(0) != &nc0_5 {
+			t.Fail()
+		}
+	})
+	t.Run("2.5 ∈ [0, 5)", func(t *testing.T) {
+		if wc.Choose(2.5) != &nc0_5 {
+			t.Fail()
+		}
+	})
+	t.Run("5 ∈ [5, 15)", func(t *testing.T) {
+		if wc.Choose(5) != &nc5_15 {
+			t.Fail()
+		}
+	})
+	t.Run("30 ∉ [0, 30)", func(t *testing.T) {
+		if wc.Choose(30) != nil {
+			t.Fail()
+		}
+	})
+	t.Run("30.1 ∉ [0, 30)", func(t *testing.T) {
+		if wc.Choose(30.1) != nil {
+			t.Fail()
+		}
+	})
 }
 
 func TestDecode(t *testing.T) {
