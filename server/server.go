@@ -108,7 +108,6 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := message.FromRequest(typ, w, r)
 	if err != nil {
-		s.tracker.PublishError(ctx, b, r, err)
 		// Most errors are connections being dropped and the JSON decoder returning
 		// "unexpected EOF", this is not valuable information so we don't log it.
 		if err != io.ErrUnexpectedEOF {

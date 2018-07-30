@@ -24,10 +24,9 @@ import (
 )
 
 type config struct {
-	Bind            string        `conf:"bind"             help:"Address on which tracking-api listens for incoming connections (default: ':8080')"`
-	Debug           bool          `conf:"debug"            help:"Turn on debug mode."`
-	Out             string        `conf:"out" help:"file to write requests to (default: /dev/null)"`
-	ErrorsOut       string        `conf:"errors-out" help:"file to write errors to (default: /dev/null)"`
+	Bind            string        `conf:"bind" help:"Address on which tracking-api listens for incoming connections (default: ':8080')"`
+	Debug           bool          `conf:"debug" help:"Turn on debug mode."`
+	Out             string        `conf:"out" help:"file to write tracking events to (see message/message.go:Message) (default: /dev/null)"`
 	ChaosConfig     string        `conf:"chaos" help:"file to load chaos config from ('-': stdin; default: see chaos/chaos.go:DefaultConfigYAML)"`
 	ShutdownTimeout time.Duration `conf:"shutdown-timeout" help:"Time limit for shutting down tracking-api (default: 5s)"`
 }
@@ -38,7 +37,6 @@ func main() {
 	config := config{
 		Bind:            ":8080",
 		Out:             "/dev/null",
-		ErrorsOut:       "/dev/null",
 		ShutdownTimeout: 5 * time.Second,
 	}
 	conf.Load(&config)
@@ -77,18 +75,11 @@ func main() {
 	}
 	defer out.Close()
 
-	errorsOut, err := os.Create(config.ErrorsOut)
-	if err != nil {
-		events.Log("opening errors-out %{errorsout}s failed: %{error}s", config.ErrorsOut, err)
-		os.Exit(1)
-	}
-	defer errorsOut.Close()
-
 	events.Log("starting %s, version: %s", os.Args[0], Version)
 	events.Debug("chaosRoot: %#v", chaosRoot)
 
 	var handler http.Handler
-	handler = api.New(out, errorsOut, chaosRoot)
+	handler = api.New(out, chaosRoot)
 
 	if config.Debug {
 		handler = httpevents.NewHandler(handler)

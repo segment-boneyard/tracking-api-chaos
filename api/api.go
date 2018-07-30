@@ -23,12 +23,12 @@ type Server struct {
 	*app.App
 }
 
-func New(out, errorsOut io.Writer, chaosRoot chaos.Chaos) *Server {
+func New(out io.Writer, chaosRoot chaos.Chaos) *Server {
 	api := &Server{
 		App:   app.New(),
 		chaos: chaosRoot,
 	}
-	tracker := tracker.New(out, errorsOut)
+	tracker := tracker.New(out)
 	api.pixel = pixel.New(tracker)
 	api.client = cors.Default().Handler(client.New(tracker))
 	api.server = server.New(tracker)
@@ -57,7 +57,6 @@ func (s *Server) route(h http.Handler) http.Handler {
 			downstream = s.server
 		} else if _, ok := client.Routes[path]; ok {
 			downstream = s.client
-			s.client.ServeHTTP(w, r)
 		} else {
 			downstream = h
 		}
