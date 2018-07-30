@@ -1,3 +1,6 @@
+// Tests are generally an HTTP call followed by validation of:
+// - the repsonse
+// - the server posting a message.Message
 package test
 
 import (
@@ -18,6 +21,10 @@ import (
 	"github.com/segmentio/tracking-api-chaos/tracker"
 )
 
+// A ServerTest redirects `out` message.messages from api.Server
+// to a bytes.Buffer for testing against.
+// ServerTest assumes that 1 valid request will result in
+// exactly 1 `out` message.Message.
 type ServerTest struct {
 	outbuf  *bytes.Buffer
 	timeout time.Duration

@@ -34,7 +34,7 @@ func New(out io.Writer) *Tracker {
 	}
 }
 
-// Writes a msg to s.out
+// Writes a msg to s.outJson, followed by a newline
 func (t *Tracker) Publish(ctx context.Context, msg *message.Message) (err error) {
 	if err = msg.Body.SetReceivedAt(Now()); err != nil {
 		events.Log("[tracker]: %{error}s", errors.Wrap(err, "setting received time"))
