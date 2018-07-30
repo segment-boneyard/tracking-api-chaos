@@ -8,149 +8,87 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"errors"
-	"fmt"
-	"net/url"
 	"time"
 
-	"sync"
-
-	"log"
-
 	"github.com/bmizerany/assert"
-	"github.com/segmentio/nsq-go"
 	"github.com/segmentio/tracking-api-chaos/api"
+	"github.com/segmentio/tracking-api-chaos/chaos"
 	"github.com/segmentio/tracking-api-chaos/message"
 	"github.com/segmentio/tracking-api-chaos/tracker"
 )
 
 type ServerTest struct {
-	messages <-chan nsq.Message
-	errorsC  <-chan nsq.Message
-	timeout  time.Duration
+	outbuf  *bytes.Buffer
+	timeout time.Duration
 	*api.Server
 }
 
 // TableTestData
 type TTData struct {
-	name           string
-	req            *http.Request
-	reqFunc        func() *http.Request
-	code           int
-	bodyResp       string
-	nsqResp        string
-	headers        http.Header
+	name string
+	// request to make
+	req *http.Request
+	// func to generate request to make
+	reqFunc func() *http.Request
+	// expected HTTP response cod
+	code int
+	// expected response body
+	bodyResp string
+	// expected outMessage (not checked for ErrorOut)
+	outMsg string
+	// expected headers
+	headers http.Header
+	// func to patch tracker.Now with; for timing
 	trackerNowFunc func() time.Time
 }
 
-type serverOpt func(*ServerTest)
+func NewServerTest() *ServerTest {
+	var outbuf bytes.Buffer
 
-func waitOnProducer(p *nsq.Producer, wg *sync.WaitGroup) {
-	for {
-		if p.Connected() {
-			wg.Done()
-			return
-		} else {
-			time.Sleep(time.Millisecond * 100)
-		}
-	}
-}
-
-func buildProducer(topic string) *nsq.Producer {
-	p, err := nsq.StartProducer(nsq.ProducerConfig{
-		Address: "localhost:4150",
-		Topic:   topic,
-	})
-	check(err)
-	return p
-}
-
-func buildConsumer(topic string) *nsq.Consumer {
-	c, err := nsq.StartConsumer(nsq.ConsumerConfig{
-		Address: "localhost:4150",
-		Topic:   topic,
-		Channel: "test",
-	})
-	check(err)
-	return c
-}
-
-func NewServerTest(opts ...serverOpt) (*ServerTest, func()) {
-	st := &ServerTest{
+	return &ServerTest{
+		outbuf:  &outbuf,
+		Server:  api.New(&outbuf, chaos.NopChaos{}),
 		timeout: 1 * time.Second,
 	}
+}
 
-	tracker.Now = func() time.Time { return time.Time{} }
-	now := time.Now().Nanosecond()
-
-	p := buildProducer(fmt.Sprintf("test-topic-%v", now))
-	errorProducer := buildProducer(fmt.Sprintf("test-topic-errors-%v#ephemeral", now))
-
-	// Now we need to await the producers connecting
-	var wg = sync.WaitGroup{}
-	wg.Add(1)
-	go waitOnProducer(p, &wg)
-	wg.Add(1)
-	go waitOnProducer(errorProducer, &wg)
-	wc := make(chan struct{})
-	go func() {
-		wg.Wait()
-		wc <- struct{}{}
-	}()
-
-	timeout := 5 * time.Second
-	log.Println("Wait for nsq producers to connect")
-	select {
-	case <-wc:
-	case <-time.After(timeout):
-		log.Println("Timed out waiting for nsq producers to connect")
-		panic("nsq producers failed to connect")
-	}
-
-	c := buildConsumer(fmt.Sprintf("test-topic-%v", now))
-	errorConsumer := buildConsumer(fmt.Sprintf("test-topic-errors-%v#ephemeral", now))
-
-	apiAddr, _ := url.Parse("http://localhost:7777")
-
-	st.messages = c.Messages()
-	st.errorsC = errorConsumer.Messages()
-	st.Server = api.New(p, errorProducer, apiAddr)
-
-	// Apply any custom options
-	for _, o := range opts {
-		if o != nil {
-			o(st)
+func (st *ServerTest) runTestCase(t *testing.T, tc TTData) {
+	t.Run(tc.name, func(t *testing.T) {
+		if tc.trackerNowFunc == nil {
+			tc.trackerNowFunc = func() time.Time { return time.Time{} }
 		}
-	}
+		oldTrackerFunc := tracker.Now
+		tracker.Now = tc.trackerNowFunc
+		defer func() { tracker.Now = oldTrackerFunc }()
 
-	// Cleanup our consumers and producers
-	return st, func() {
-		p.Stop()
-		errorProducer.Stop()
-	}
-}
+		rec := httptest.NewRecorder()
+		req := tc.req
+		if req == nil {
+			req = tc.reqFunc()
+		}
+		st.ServeHTTP(rec, req)
 
-func (st *ServerTest) consume() (nsq.Message, error) {
-	select {
-	case msg := <-st.messages:
-		msg.Finish()
-		return msg, nil
-	case <-time.After(time.Second):
-		return nsq.Message{}, errors.New("consume: timeout of 1s reached")
-	}
-}
+		if tc.code != 0 {
+			assert.Equal(t, rec.Code, tc.code)
+		}
+		if tc.bodyResp != "" {
+			assert.Equal(t, rec.Body.String(), tc.bodyResp)
+		}
+		for k, v := range tc.headers {
+			assert.Equal(t, v[0], rec.Header().Get(k))
+		}
 
-func (st *ServerTest) consumeError() (nsq.Message, error) {
-	select {
-	case msg := <-st.errorsC:
-		msg.Finish()
-		return msg, nil
-	case <-time.After(time.Second):
-		return nsq.Message{}, errors.New("consume: timeout of 1s reached")
-	}
+		if rec.Code == http.StatusOK && tc.outMsg != "" {
+			var actualOutMsg []byte
+			actualOutMsg, err := st.outbuf.ReadBytes('\n')
+			if err != nil {
+				t.Fatalf("failed to read line; got `%s`; err: %s", actualOutMsg, err)
+			}
+			actualOutMsg = actualOutMsg[:len(actualOutMsg)-1]
+			assert.Equal(t, string(tc.outMsg), string(actualOutMsg))
+		}
+	})
 }
 
 func TestServer(t *testing.T) {
@@ -160,105 +98,105 @@ func TestServer(t *testing.T) {
 			req:      post("/v1/identify", `{"userId": "user-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
 		},
 		{
 			name:     "gzip",
 			req:      postGzip("/v1/identify", `{"userId": "user-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
 		},
 		{
 			name:     "trailingSlash",
 			req:      post("/v1/identify/", `{"userId": "user-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
 		},
 		{
 			name:     "caseSensitivity",
 			req:      post("/v1/IDENTIFY", `{"userId": "user-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
 		},
 		{
 			name:     "caseSensitivitySlash",
 			req:      post("/v1/IDENTIFY/", `{"userId": "user-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/identify","headers":{}}`,
 		},
 		{
 			name:     "group",
 			req:      post("/v1/group", `{"groupId": "group-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"groupId":"group-id","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/group","headers":{}}`,
+			outMsg:   `{"body":{"groupId":"group-id","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/group","headers":{}}`,
 		},
 		{
 			name:     "groupGzip",
 			req:      postGzip("/v1/group", `{"groupId": "group-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"groupId":"group-id","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/group","headers":{}}`,
+			outMsg:   `{"body":{"groupId":"group-id","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/group","headers":{}}`,
 		},
 		{
 			name:     "alias",
 			req:      post("/v1/alias", `{"userId": "user-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/alias","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/alias","headers":{}}`,
 		},
 		{
 			name:     "aliasGzip",
 			req:      postGzip("/v1/alias", `{"userId": "user-id"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/alias","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/alias","headers":{}}`,
 		},
 		{
 			name:     "page",
 			req:      post("/v1/page", `{"name": "Docs"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/page","headers":{}}`,
+			outMsg:   `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/page","headers":{}}`,
 		},
 		{
 			name:     "pageGzip",
 			req:      postGzip("/v1/page", `{"name": "Docs"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/page","headers":{}}`,
+			outMsg:   `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/page","headers":{}}`,
 		},
 		{
 			name:     "screen",
 			req:      post("/v1/screen", `{"name": "Docs"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/screen","headers":{}}`,
+			outMsg:   `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/screen","headers":{}}`,
 		},
 		{
 			name:     "screenGzip",
 			req:      postGzip("/v1/screen", `{"name": "Docs"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/screen","headers":{}}`,
+			outMsg:   `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/screen","headers":{}}`,
 		},
 		{
 			name:     "track",
 			req:      post("/v1/track", `{"event": "Signup"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/track","headers":{}}`,
+			outMsg:   `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/track","headers":{}}`,
 		},
 		{
 			name:     "trackGzip",
 			req:      postGzip("/v1/track", `{"event": "Signup"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/track","headers":{}}`,
+			outMsg:   `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/track","headers":{}}`,
 		},
 		{
 			name: "trackBasicAuth",
@@ -269,21 +207,21 @@ func TestServer(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/track","headers":{"Authorization":["Basic d3JpdGUta2V5Og=="]}}`,
+			outMsg:   `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/track","headers":{"Authorization":["Basic d3JpdGUta2V5Og=="]}}`,
 		},
 		{
 			name:     "batch",
 			req:      post("/v1/batch", `{"batch":[]}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/batch","headers":{}}`,
+			outMsg:   `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/batch","headers":{}}`,
 		},
 		{
 			name:     "batchGzip",
 			req:      postGzip("/v1/batch", `{"batch":[]}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/batch","headers":{}}`,
+			outMsg:   `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/batch","headers":{}}`,
 		},
 		{
 			name: "invalidMessageWithoutAuthHeader",
@@ -295,7 +233,6 @@ func TestServer(t *testing.T) {
 			},
 			code:     http.StatusBadRequest,
 			bodyResp: "Bad Request\n",
-			nsqResp:  "/v1/batch\n:\n[message] error decoding json from request: json: cannot unmarshal array into Go value of type message.RawBody\n22\n[{\"a\": \"b\"},{\"c\":\"d\"}]",
 		},
 		{
 			name: "invalidMessageWithAuthHeader",
@@ -308,7 +245,6 @@ func TestServer(t *testing.T) {
 			},
 			code:     http.StatusBadRequest,
 			bodyResp: "Bad Request\n",
-			nsqResp:  "/v1/batch\nfoo:bar\n[message] error decoding json from request: json: cannot unmarshal array into Go value of type message.RawBody\n22\n[{\"a\": \"b\"},{\"c\":\"d\"}]",
 		},
 		{
 			name: "invalidGzipErrors",
@@ -321,7 +257,7 @@ func TestServer(t *testing.T) {
 			},
 			code:     http.StatusBadRequest,
 			bodyResp: "{\"success\":false,\"message\":\"Malformed gzip content\"}",
-			nsqResp:  "",
+			outMsg:   "",
 		},
 		{
 			name: "validGzipButInvalidRequestErrors",
@@ -337,21 +273,20 @@ func TestServer(t *testing.T) {
 			},
 			code:     http.StatusBadRequest,
 			bodyResp: "Bad Request\n",
-			nsqResp:  "/v1/batch\n:\n[message] error decoding json from request: json: cannot unmarshal array into Go value of type message.RawBody\n12\n[{\"a\": \"b\"}]",
 		},
 		{
 			name:     "import",
 			req:      post("/v1/import", `{"batch":[]}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/import","headers":{}}`,
+			outMsg:   `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/import","headers":{}}`,
 		},
 		{
 			name:     "importGzip",
 			req:      postGzip("/v1/import", `{"batch":[]}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/import","headers":{}}`,
+			outMsg:   `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/import","headers":{}}`,
 		},
 		{
 			name: "importGzipHeaderSpacing",
@@ -362,14 +297,13 @@ func TestServer(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/import","headers":{}}`,
+			outMsg:   `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/import","headers":{}}`,
 		},
 		{
 			name:     "badJson",
 			req:      post("/v1/identify", `{"userId"`),
 			code:     http.StatusBadRequest,
 			bodyResp: "Bad Request\n",
-			nsqResp:  "/v1/identify\n:\nunexpected EOF\n9\n{\"userId\"",
 		},
 		{
 			name: "badGzipContent",
@@ -380,45 +314,19 @@ func TestServer(t *testing.T) {
 			},
 			code:     http.StatusBadRequest,
 			bodyResp: `{"success":false,"message":"Malformed gzip content"}`,
-			nsqResp:  "",
 		},
 		{
 			name:     "put",
 			req:      put("/v1/page", `{"name": "Docs"}`),
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"PUT","path":"/v1/page","headers":{}}`,
+			outMsg:   `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"PUT","path":"/v1/page","headers":{}}`,
 		},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			srv, td := NewServerTest()
-			defer td()
-			rec := httptest.NewRecorder()
-			req := tc.req
-			if req == nil {
-				req = tc.reqFunc()
-			}
-			srv.ServeHTTP(rec, req)
-			assert.Equal(t, rec.Code, tc.code)
-			assert.Equal(t, rec.Body.String(), tc.bodyResp)
-
-			var msg nsq.Message
-			var err error
-			if tc.code == http.StatusOK {
-				msg, err = srv.consume()
-			} else {
-				msg, err = srv.consumeError()
-			}
-
-			if tc.nsqResp != "" {
-				assert.Equal(t, err, nil)
-			} else {
-				assert.NotEqual(t, err, nil)
-			}
-			assert.Equal(t, string(msg.Body), tc.nsqResp)
-		})
+		srv := NewServerTest()
+		srv.runTestCase(t, tc)
 	}
 }
 
@@ -436,10 +344,8 @@ func TestServerLargePayloads(t *testing.T) {
 			},
 			code:     http.StatusBadRequest,
 			bodyResp: "Bad Request\n",
-			nsqResp:  "/v1/identify\n:\n[message] error decoding json from request: http: request body too large\n65539",
 		},
 		{
-			// TODO: largeJsonBatch never returns on consumeError, need to understand why.
 			name: "largeJsonBatch",
 			reqFunc: func() *http.Request {
 				huge := make([]int, message.Batch+1)
@@ -455,25 +361,8 @@ func TestServerLargePayloads(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			srv, td := NewServerTest()
-			defer td()
-			rec := httptest.NewRecorder()
-			req := tc.req
-			if req == nil {
-				req = tc.reqFunc()
-			}
-			srv.ServeHTTP(rec, req)
-			assert.Equal(t, rec.Code, tc.code)
-			assert.Equal(t, rec.Body.String(), tc.bodyResp)
-
-			msg, err := srv.consumeError()
-
-			if tc.nsqResp != "" {
-				assert.Equal(t, err, nil)
-				assert.Equal(t, true, strings.HasPrefix(string(msg.Body), tc.nsqResp))
-			}
-		})
+		srv := NewServerTest()
+		srv.runTestCase(t, tc)
 	}
 }
 
@@ -492,7 +381,7 @@ func TestServerTracks(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/track","headers":{"Origin":["https://example.com"]}}`,
+			outMsg:   `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/track","headers":{"Origin":["https://example.com"]}}`,
 		},
 		{
 			name: "preflightTrack",
@@ -515,38 +404,15 @@ func TestServerTracks(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			srv, td := NewServerTest()
-			defer td()
-			rec := httptest.NewRecorder()
-			req := tc.req
-			if req == nil {
-				req = tc.reqFunc()
-			}
-			srv.ServeHTTP(rec, req)
-			assert.Equal(t, rec.Code, tc.code)
-			if tc.bodyResp != "" {
-				assert.Equal(t, rec.Body.String(), tc.bodyResp)
-			}
-
-			for k, v := range tc.headers {
-				assert.Equal(t, v[0], rec.Header().Get(k))
-			}
-
-			msg, err := srv.consume()
-			if tc.nsqResp != "" {
-				assert.Equal(t, err, nil)
-				assert.Equal(t, string(msg.Body), tc.nsqResp)
-			}
-		})
+		srv := NewServerTest()
+		srv.runTestCase(t, tc)
 	}
 }
 
 func BenchmarkServerTrackSmall(b *testing.B) {
 	buf := fixture("track.small.json")
 
-	srv, td := NewServerTest()
-	defer td()
+	srv := NewServerTest()
 	s := httptest.NewServer(srv)
 	defer s.Close()
 
@@ -566,8 +432,7 @@ func BenchmarkServerTrackSmall(b *testing.B) {
 func BenchmarkServerTrackLarge(b *testing.B) {
 	buf := fixture("track.large.json")
 
-	srv, td := NewServerTest()
-	defer td()
+	srv := NewServerTest()
 	s := httptest.NewServer(srv)
 	defer s.Close()
 
@@ -587,8 +452,7 @@ func BenchmarkServerTrackLarge(b *testing.B) {
 func BenchmarkServerTrackBroken(b *testing.B) {
 	buf := fixture("track.broken.json")
 
-	srv, td := NewServerTest()
-	defer td()
+	srv := NewServerTest()
 	s := httptest.NewServer(srv)
 	defer s.Close()
 

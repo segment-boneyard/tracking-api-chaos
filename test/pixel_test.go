@@ -2,7 +2,6 @@ package test
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -10,7 +9,6 @@ import (
 
 	"github.com/bmizerany/assert"
 	"github.com/segmentio/tracking-api-chaos/message"
-	"github.com/segmentio/tracking-api-chaos/pixel"
 )
 
 func TestPixels(t *testing.T) {
@@ -22,8 +20,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"GET","path":"/v1/pixel/identify","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"GET","path":"/v1/pixel/identify","headers":{}}`,
 		},
 		{
 			name: "pixelIdentifyQuery",
@@ -32,8 +30,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","traits":{"name":"name"},"userId":"user"},"method":"GET","path":"/v1/pixel/identify","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","traits":{"name":"name"},"userId":"user"},"method":"GET","path":"/v1/pixel/identify","headers":{}}`,
 		},
 		{
 			name: "pixelGroup",
@@ -42,8 +40,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"groupId":"group-id","receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/group","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"groupId":"group-id","receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/group","headers":{}}`,
 		},
 		{
 			name: "pixelQueryGroup",
@@ -52,8 +50,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"groupId":"group","receivedAt":"0001-01-01T00:00:00Z","traits":{"name":"name"}},"method":"GET","path":"/v1/pixel/group","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"groupId":"group","receivedAt":"0001-01-01T00:00:00Z","traits":{"name":"name"}},"method":"GET","path":"/v1/pixel/group","headers":{}}`,
 		},
 		{
 			name: "pixelAlias",
@@ -62,8 +60,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"GET","path":"/v1/pixel/alias","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"GET","path":"/v1/pixel/alias","headers":{}}`,
 		},
 		{
 			name: "pixelQueryAlias",
@@ -72,8 +70,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user"},"method":"GET","path":"/v1/pixel/alias","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user"},"method":"GET","path":"/v1/pixel/alias","headers":{}}`,
 		},
 		{
 			name: "pixelPage",
@@ -82,8 +80,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/page","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/page","headers":{}}`,
 		},
 		{
 			name: "pixelQueryPage",
@@ -98,14 +96,14 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"name":"Docs","properties":{"path":"/docs"},"receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/page","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"name":"Docs","properties":{"path":"/docs"},"receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/page","headers":{}}`,
 		},
 		{
-			name:    "pixelScreen",
-			req:     get("/v1/pixel/screen", `{"name": "Docs"}`),
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/screen","headers":{}}`,
+			name:   "pixelScreen",
+			req:    get("/v1/pixel/screen", `{"name": "Docs"}`),
+			code:   http.StatusOK,
+			outMsg: `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/screen","headers":{}}`,
 		},
 		{
 			name: "pixelQueryScreen",
@@ -121,8 +119,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"name":"Docs","properties":{"path":"/docs","screen":"docs"},"receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/screen","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"name":"Docs","properties":{"path":"/docs","screen":"docs"},"receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/screen","headers":{}}`,
 		},
 		{
 			name: "pixelTrack",
@@ -131,8 +129,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/track","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"GET","path":"/v1/pixel/track","headers":{}}`,
 		},
 		{
 			name: "pixelQueryTrack",
@@ -141,8 +139,8 @@ func TestPixels(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"event":"event","properties":{"foo":{"baz":"baz"},"value":"1"},"receivedAt":"0001-01-01T00:00:00Z","userId":"user"},"method":"GET","path":"/v1/pixel/track","headers":{}}`,
+			code:   http.StatusOK,
+			outMsg: `{"body":{"event":"event","properties":{"foo":{"baz":"baz"},"value":"1"},"receivedAt":"0001-01-01T00:00:00Z","userId":"user"},"method":"GET","path":"/v1/pixel/track","headers":{}}`,
 		},
 		{
 			name: "pixelBadJson",
@@ -151,28 +149,8 @@ func TestPixels(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			srv, td := NewServerTest()
-			defer td()
-
-			rec := httptest.NewRecorder()
-			req := tc.req
-			if req == nil {
-				req = tc.reqFunc()
-			}
-			srv.ServeHTTP(rec, req)
-			assert.Equal(t, rec.Code, tc.code)
-			assert.Equal(t, rec.Body.Bytes(), pixel.GIF)
-			for k, v := range tc.headers {
-				assert.Equal(t, v[0], rec.Header().Get(k))
-			}
-
-			if tc.nsqResp != "" {
-				msg, err := srv.consume()
-				assert.Equal(t, err, nil)
-				assert.Equal(t, string(msg.Body), tc.nsqResp)
-			}
-		})
+		srv := NewServerTest()
+		srv.runTestCase(t, tc)
 	}
 }
 
@@ -192,22 +170,12 @@ func TestPixelsLargeJson(t *testing.T) {
 				"Content-Type":  {"image/gif"},
 				"Cache-Control": {"no-cache, max-age=0"},
 			},
-			code:    http.StatusOK,
-			nsqResp: `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"GET","path":"/v1/pixel/identify","headers":{}}`,
+			code: http.StatusOK,
+			// no track event is output, but we still get the pixel back with a 200
 		},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			srv, td := NewServerTest()
-			defer td()
-
-			rec := httptest.NewRecorder()
-			req := tc.req
-			if req == nil {
-				req = tc.reqFunc()
-			}
-			srv.ServeHTTP(rec, req)
-			assert.Equal(t, rec.Code, tc.code)
-		})
+		srv := NewServerTest()
+		srv.runTestCase(t, tc)
 	}
 }

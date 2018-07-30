@@ -1,12 +1,9 @@
 package test
 
 import (
-	"net/http/httptest"
 	"testing"
 
 	"net/http"
-
-	"github.com/bmizerany/assert"
 )
 
 func TestJSON(t *testing.T) {
@@ -19,7 +16,7 @@ func TestJSON(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/i","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/i","headers":{}}`,
 		},
 		{
 			name: "clientGroup",
@@ -29,7 +26,7 @@ func TestJSON(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"groupId":"group-id","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/g","headers":{}}`,
+			outMsg:   `{"body":{"groupId":"group-id","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/g","headers":{}}`,
 		},
 		{
 			name: "clientAlias",
@@ -39,7 +36,7 @@ func TestJSON(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/a","headers":{}}`,
+			outMsg:   `{"body":{"receivedAt":"0001-01-01T00:00:00Z","userId":"user-id"},"method":"POST","path":"/v1/a","headers":{}}`,
 		},
 		{
 			name: "clientPage",
@@ -49,7 +46,7 @@ func TestJSON(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/p","headers":{}}`,
+			outMsg:   `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/p","headers":{}}`,
 		},
 		{
 			name: "clientScreen",
@@ -59,7 +56,7 @@ func TestJSON(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/s","headers":{}}`,
+			outMsg:   `{"body":{"name":"Docs","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/s","headers":{}}`,
 		},
 		{
 			name: "clientTrack",
@@ -69,7 +66,7 @@ func TestJSON(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/t","headers":{}}`,
+			outMsg:   `{"body":{"event":"Signup","receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/t","headers":{}}`,
 		},
 		{
 			name: "clientBatch",
@@ -79,30 +76,12 @@ func TestJSON(t *testing.T) {
 			},
 			code:     http.StatusOK,
 			bodyResp: `{"success":true}`,
-			nsqResp:  `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/b","headers":{}}`,
+			outMsg:   `{"body":{"batch":[],"receivedAt":"0001-01-01T00:00:00Z"},"method":"POST","path":"/v1/b","headers":{}}`,
 		},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			srv, td := NewServerTest()
-			defer td()
-
-			rec := httptest.NewRecorder()
-			req := tc.req
-			if req == nil {
-				req = tc.reqFunc()
-			}
-			srv.ServeHTTP(rec, req)
-			assert.Equal(t, rec.Code, tc.code)
-			assert.Equal(t, rec.Body.String(), tc.bodyResp)
-			for k, v := range tc.headers {
-				assert.Equal(t, v[0], rec.Header().Get(k))
-			}
-
-			msg, err := srv.consume()
-			assert.Equal(t, err, nil)
-			assert.Equal(t, string(msg.Body), tc.nsqResp)
-		})
+		srv := NewServerTest()
+		srv.runTestCase(t, tc)
 	}
 }
