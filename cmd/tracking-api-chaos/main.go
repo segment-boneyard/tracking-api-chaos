@@ -27,7 +27,7 @@ type config struct {
 	Bind            string        `conf:"bind" help:"Address on which tracking-api listens for incoming connections (default: ':8080')"`
 	Debug           bool          `conf:"debug" help:"Turn on debug mode."`
 	Out             string        `conf:"out" help:"file to write tracking events to (see message/message.go:Message) (default: /dev/null)"`
-	ChaosConfig     string        `conf:"chaos" help:"file to load chaos config from ('-': stdin; default: see chaos/chaos.go:DefaultConfigYAML)"`
+	ChaosConfig     string        `conf:"chaos" help:"file to load chaos config from ('-': stdin; default: see README.md for example)"`
 	ShutdownTimeout time.Duration `conf:"shutdown-timeout" help:"Time limit for shutting down tracking-api (default: 5s)"`
 }
 
