@@ -1,0 +1,19 @@
+name: "tracking-api-chaos"
+arch: "amd64"
+platform: "linux"
+version: "${VERSION}"
+section: "default"
+priority: "extra"
+provides:
+- tracking-api-chaos
+vendor: 'Segment, Inc.'
+maintainer: tooling-team@segment.com
+homepage: "https://github.com/segmentio/tracking-api-chaos"
+license: "MIT"
+# IMHO packages should install to /usr/bin
+bindir: /usr/bin
+files:
+  "${DIST_BIN}": "/usr/bin/tracking-api-chaos"
+description: >
+  tracking-api-chaos is a fake for Segment's tracking API that can add chaos
+  like random error codes and latency

@@ -81,10 +81,10 @@
 			"revisionTime": "2016-06-18T19:32:21Z"
 		},
 		{
-			"checksumSHA1": "8xpFdZVp0QVAhbq20SJEb4qTcEk=",
+			"checksumSHA1": "Jae7cNv6qlVpRaqRN27wW2oYKQs=",
 			"path": "github.com/segmentio/analytics-go",
-			"revision": "4f08212e9b32c48b4a4d20997d3f90dc0b56eba8",
-			"revisionTime": "2018-03-19T16:54:24Z"
+			"revision": "fe449d569c914ede33754d117bd38526c65e48c9",
+			"revisionTime": "2018-06-01T15:25:59Z"
 		},
 		{
 			"checksumSHA1": "Vm8f+in2jTy87muSHVpBGrrJzIg=",
