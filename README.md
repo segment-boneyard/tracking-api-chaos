@@ -38,7 +38,7 @@ You can also use Docker:
 ```sh
 % docker build -t tracking-api-chaos .
 
-% echo '[{weight: 10, statusCode: {code: 500}}]' | docker run tracking-api-chaos -chaos -
+% echo '[{weight: 10, statusCode: {code: 500}}]' | docker run -i -p 8080:8080 tracking-api-chaos -chaos -
 ```
 
 Example config
