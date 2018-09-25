@@ -10,7 +10,7 @@ DOCKER_TAG := "tracking-api-chaos:$(VERSION)"
 
 test: | govendor
 	govendor sync
-	govendor test -race -cover -v +local
+	govendor test -cover -v +local
 
 all: dist/tracking-api-chaos-$(VERSION)-darwin-amd64 dist/tracking-api-chaos-$(VERSION)-linux-amd64
 
