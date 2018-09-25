@@ -1,5 +1,5 @@
 FROM golang:1.10-alpine as build
-RUN apk add --no-cache git make
+RUN apk add --no-cache git build-base 
 RUN mkdir -p /go/src/github.com/segmentio/tracking-api-chaos/vendor
 COPY ./vendor/vendor.json /go/src/github.com/segmentio/tracking-api-chaos/vendor/vendor.json
 WORKDIR /go/src/github.com/segmentio/tracking-api-chaos
