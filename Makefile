@@ -8,11 +8,11 @@ VERSION := $(shell git describe --tags --always --dirty="-dev")
 LDFLAGS := -ldflags='-X "main.Version=$(VERSION)"'
 DOCKER_TAG := "tracking-api-chaos:$(VERSION)"
 
+all: dist/tracking-api-chaos-$(VERSION)-darwin-amd64 dist/tracking-api-chaos-$(VERSION)-linux-amd64
+
 test: | govendor
 	govendor sync
 	govendor test -cover -v +local
-
-all: dist/tracking-api-chaos-$(VERSION)-darwin-amd64 dist/tracking-api-chaos-$(VERSION)-linux-amd64
 
 clean:
 	rm -rf ./dist
