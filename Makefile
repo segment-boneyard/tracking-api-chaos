@@ -18,7 +18,7 @@ clean:
 	rm -rf ./dist
 
 docker:
-	docker build -f Dockerfile -t $(DOCKER_TAG) .
+	docker build -f Dockerfile -t $(DOCKER_TAG) --build-arg VERSION=$(VERSION) .
 
 dist/:
 	mkdir -p dist

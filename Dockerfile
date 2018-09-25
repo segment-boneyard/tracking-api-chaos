@@ -10,6 +10,7 @@ RUN make
 
 FROM alpine:3.7
 EXPOSE 8080
-COPY --from=build /go/src/github.com/segmentio/tracking-api-chaos/tracking-api-chaos /
+ARG VERSION
+COPY --from=build /go/src/github.com/segmentio/tracking-api-chaos/dist/tracking-api-chaos-${VERSION}-linux-amd64 /tracking-api-chaos
 RUN chmod +x /tracking-api-chaos
 ENTRYPOINT ["/tracking-api-chaos"]
