@@ -8,17 +8,17 @@ VERSION := $(shell git describe --tags --always --dirty="-dev")
 LDFLAGS := -ldflags='-X "main.Version=$(VERSION)"'
 DOCKER_TAG := "tracking-api-chaos:$(VERSION)"
 
+all: dist/tracking-api-chaos-$(VERSION)-darwin-amd64 dist/tracking-api-chaos-$(VERSION)-linux-amd64
+
 test: | govendor
 	govendor sync
-	govendor test -race -cover -v +local
-
-all: dist/tracking-api-chaos-$(VERSION)-darwin-amd64 dist/tracking-api-chaos-$(VERSION)-linux-amd64
+	govendor test -cover -v +local
 
 clean:
 	rm -rf ./dist
 
 docker:
-	docker build -f Dockerfile -t $(DOCKER_TAG) .
+	docker build -f Dockerfile -t $(DOCKER_TAG) --build-arg VERSION=$(VERSION) .
 
 dist/:
 	mkdir -p dist

@@ -36,7 +36,7 @@ tracking-api-chaos[69277]: - [::1]:3000->[::1]:51124 - localhost:3000 - POST /v1
 You can also use Docker:
 
 ```sh
-% docker build -t tracking-api-chaos .
+% make docker 
 
 % echo '[{weight: 10, statusCode: {code: 500}}]' | docker run -i -p 8080:8080 tracking-api-chaos -chaos -
 ```
