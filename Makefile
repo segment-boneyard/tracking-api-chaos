@@ -4,7 +4,7 @@
 #
 # This makefile is meant for humans
 
-VERSION := $(shell git describe --tags --always --dirty="-dev")
+VERSION := $(shell git describe --tags --always)
 LDFLAGS := -ldflags='-X "main.Version=$(VERSION)"'
 DOCKER_TAG := "tracking-api-chaos:$(VERSION)"
 
