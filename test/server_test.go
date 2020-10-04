@@ -1,5 +1,5 @@
 // Tests are generally an HTTP call followed by validation of:
-// - the repsonse
+// - the response
 // - the server posting a message.Message
 package test
 

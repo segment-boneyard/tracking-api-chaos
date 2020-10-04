@@ -135,7 +135,7 @@ func main() {
 		wg.Wait()
 	default:
 		exitCode = 1
-		events.Log("an error occured serving requests: %{error}v", err)
+		events.Log("an error occurred serving requests: %{error}v", err)
 	}
 
 	os.Exit(exitCode)
